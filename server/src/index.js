@@ -1,6 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -15,21 +17,9 @@ import { notFound, errorHandler } from "./middleware/errors.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from server folder
-const envResult = dotenv.config({
-  path: path.resolve(__dirname, "../.env"),
-});
-
-if (envResult.error) {
-  console.error("❌ Failed to load .env");
-  console.error(envResult.error);
-} else {
-  console.log("✅ .env loaded successfully");
-}
-
 console.log("PORT =", process.env.PORT);
 console.log("CLIENT_URL =", process.env.CLIENT_URL);
-console.log("SMTP_HOST =", process.env.SMTP_HOST);
+console.log("SMTP_HOST =", process.env.SMTP_HOST || "Not Set");
 console.log(
   "MONGODB_URI =",
   process.env.MONGODB_URI ? "Loaded ✅" : "Missing ❌"
@@ -76,7 +66,10 @@ app.use(
             frameSrc: [
               "https://maps.google.com",
             ],
-            connectSrc: ["'self'"],
+            connectSrc: [
+              "'self'",
+              process.env.CLIENT_URL,
+            ],
           },
         }
       : false,
@@ -84,23 +77,32 @@ app.use(
 );
 
 /* ===========================
-   CORS FIX
+   CORS
 =========================== */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_URL,
+];
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-      "http://192.168.1.13:5173",
-    ],
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Handle browser preflight requests
 app.options("*", cors());
 
 /* =========================== */
