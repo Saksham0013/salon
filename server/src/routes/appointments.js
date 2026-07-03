@@ -1,0 +1,23 @@
+import { Router } from 'express';
+import { body } from 'express-validator';
+import { createAppointment } from '../controllers/appointmentController.js';
+import { validateRequest } from '../middleware/validate.js';
+
+const router = Router();
+
+router.post(
+  '/',
+  [
+    body('name').trim().isLength({ min: 2, max: 120 }),
+    body('email').trim().isEmail().normalizeEmail(),
+    body('phone').trim().isLength({ min: 7, max: 40 }),
+    body('service').trim().isLength({ min: 2, max: 120 }),
+    body('preferredDate').isISO8601().toDate(),
+    body('preferredTime').trim().matches(/^([01]\d|2[0-3]):[0-5]\d$/),
+    body('notes').optional({ checkFalsy: true }).trim().isLength({ max: 1200 })
+  ],
+  validateRequest,
+  createAppointment
+);
+
+export default router;
