@@ -1,0 +1,10 @@
+{
+  "name": "Luxe Salon",
+  "short_name": "Luxe",
+  "description": "Luxury hair, beauty, and spa appointments.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#11100e",
+  "background_color": "#fffaf4",
+  "icons": []
+}

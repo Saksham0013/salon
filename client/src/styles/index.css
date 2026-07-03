@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #11100e;
+  background: #fffaf4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+@keyframes fade {
+  0% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+}
+
+.animate-fade {
+  animation: fade 1.2s ease;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(215, 180, 106, 0.14), transparent 28rem),
+    linear-gradient(180deg, #fffaf4 0%, #f7f0e8 100%);
+}
+
+::selection {
+  background: #d7b46a;
+  color: #11100e;
+}
+
+.container-luxe {
+  width: min(1120px, calc(100% - 32px));
+  margin-inline: auto;
+}
+
+.glass-panel {
+  border: 1px solid rgba(215, 180, 106, 0.32);
+  background: rgba(255, 250, 244, 0.84);
+  backdrop-filter: blur(18px);
+}
+
+.field {
+  width: 100%;
+  border: 1px solid rgba(17, 16, 14, 0.14);
+  background: rgba(255, 250, 244, 0.86);
+  padding: 0.9rem 1rem;
+  color: #11100e;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.field:focus {
+  border-color: #d7b46a;
+  box-shadow: 0 0 0 4px rgba(215, 180, 106, 0.16);
+  background: #fffaf4;
+}
+
+.field::placeholder {
+  color: rgba(17, 16, 14, 0.46);
+}
