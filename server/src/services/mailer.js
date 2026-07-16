@@ -10,21 +10,38 @@ function hasSmtpConfig() {
 
 function createTransporter() {
   if (!hasSmtpConfig()) {
-    throw new Error("SMTP configuration is missing. Check your .env file.");
+    throw new Error("SMTP configuration is missing. Check your Render Environment Variables.");
   }
 
-  return nodemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === "true", // Use true only for port 465
+    requireTLS: true,                    // Important for Gmail
+    connectionTimeout: 15000,            // Increased for Render
+    greetingTimeout: 15000,
+    socketTimeout: 30000,
+    
+    // Debug settings (remove in production if you want)
+    debug: true,
+    logger: true,
+
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
   });
+
+  // Verify connection (helpful for debugging)
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error("❌ Transporter verification failed:", error);
+    } else {
+      console.log("✅ Transporter is ready to send emails");
+    }
+  });
+
+  return transporter;
 }
 
 export async function sendMail({ subject, html, replyTo }) {
@@ -50,13 +67,17 @@ export async function sendMail({ subject, html, replyTo }) {
     return info;
   } catch (error) {
     console.error("====================================");
-    console.error("❌ EMAIL SENDING FAILED");
-    console.error(error);
+    console.error("❌ APPOINTMENT EMAIL FAILED");
+    console.error("Message:", error.message);
+    console.error("Code:", error.code);
+    console.error("Command:", error.command);
+    console.error("Full Error:", error);
     console.error("====================================");
     throw error;
   }
 }
 
+// Keep your email templates unchanged
 export function appointmentEmail(appointment) {
   return `
   <!DOCTYPE html>
@@ -66,47 +87,17 @@ export function appointmentEmail(appointment) {
     <h2>💇 New Luxe Salon Appointment</h2>
 
     <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;width:100%;">
-      <tr>
-        <td><strong>Name</strong></td>
-        <td>${appointment.name}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Email</strong></td>
-        <td>${appointment.email}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Phone</strong></td>
-        <td>${appointment.phone}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Service</strong></td>
-        <td>${appointment.service}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Date</strong></td>
-        <td>${new Date(appointment.preferredDate).toLocaleDateString()}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Time</strong></td>
-        <td>${appointment.preferredTime}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Notes</strong></td>
-        <td>${appointment.notes || "No Notes"}</td>
-      </tr>
-
+      <tr><td><strong>Name</strong></td><td>${appointment.name}</td></tr>
+      <tr><td><strong>Email</strong></td><td>${appointment.email}</td></tr>
+      <tr><td><strong>Phone</strong></td><td>${appointment.phone}</td></tr>
+      <tr><td><strong>Service</strong></td><td>${appointment.service}</td></tr>
+      <tr><td><strong>Date</strong></td><td>${new Date(appointment.preferredDate).toLocaleDateString()}</td></tr>
+      <tr><td><strong>Time</strong></td><td>${appointment.preferredTime}</td></tr>
+      <tr><td><strong>Notes</strong></td><td>${appointment.notes || "No Notes"}</td></tr>
     </table>
 
     <br>
-
     <p>This appointment was submitted from the Luxe Salon website.</p>
-
   </body>
   </html>
   `;
@@ -117,31 +108,13 @@ export function contactEmail(message) {
   <!DOCTYPE html>
   <html>
   <body>
-
     <h2>📩 New Contact Message</h2>
-
     <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;width:100%;">
-      <tr>
-        <td><strong>Name</strong></td>
-        <td>${message.name}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Email</strong></td>
-        <td>${message.email}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Subject</strong></td>
-        <td>${message.subject}</td>
-      </tr>
-
-      <tr>
-        <td><strong>Message</strong></td>
-        <td>${message.message}</td>
-      </tr>
+      <tr><td><strong>Name</strong></td><td>${message.name}</td></tr>
+      <tr><td><strong>Email</strong></td><td>${message.email}</td></tr>
+      <tr><td><strong>Subject</strong></td><td>${message.subject}</td></tr>
+      <tr><td><strong>Message</strong></td><td>${message.message}</td></tr>
     </table>
-
   </body>
   </html>
   `;
