@@ -76,13 +76,16 @@ export async function sendMail({ to, subject, html, replyTo }) {
     return { skipped: true };
   }
 
-  return transporter.sendMail({
+  const info = await transporter.sendMail({
     from: process.env.MAIL_FROM || process.env.SMTP_USER,
     to,
     replyTo,
     subject,
     html,
   });
+
+  console.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
+  return info;
 }
 
 function layout({ title, eyebrow, body, accent = "#d7b46a" }) {
