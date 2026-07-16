@@ -5,32 +5,9 @@ import { saveContactMessage } from "../services/memoryStore.js";
 
 export async function createContactMessage(req, res, next) {
   try {
-    // Save message
     const message = isDatabaseReady()
       ? await ContactMessage.create(req.body)
       : saveContactMessage(req.body);
-
-    // Send email
-    try {
-      const info = await sendMail({
-        subject: `📩 New Contact Message: ${message.subject}`,
-        html: contactEmail(message),
-        replyTo: message.email,
-      });
-
-      console.log("====================================");
-      console.log("✅ CONTACT EMAIL SENT");
-      console.log("Message ID:", info.messageId);
-      console.log("Accepted:", info.accepted);
-      console.log("Rejected:", info.rejected);
-      console.log("Response:", info.response);
-      console.log("====================================");
-    } catch (mailError) {
-      console.error("====================================");
-      console.error("❌ CONTACT EMAIL FAILED");
-      console.error(mailError);
-      console.error("====================================");
-    }
 
     res.status(201).json({
       success: true,
@@ -38,6 +15,18 @@ export async function createContactMessage(req, res, next) {
       messageId: message._id,
       storage: isDatabaseReady() ? "mongodb" : "memory",
     });
+
+    sendMail({
+      subject: `New Contact Message: ${message.subject}`,
+      html: contactEmail(message),
+      replyTo: message.email,
+    })
+      .then((info) => {
+        console.log("Contact email sent:", info.messageId);
+      })
+      .catch((mailError) => {
+        console.error("Contact email sending failed:", mailError.message);
+      });
   } catch (error) {
     next(error);
   }

@@ -5,33 +5,28 @@ import { saveAppointment } from "../services/memoryStore.js";
 
 export async function createAppointment(req, res, next) {
   try {
-    // Save appointment
     const appointment = isDatabaseReady()
       ? await Appointment.create(req.body)
       : saveAppointment(req.body);
 
-    // Send email (do not fail booking if email fails)
-    try {
-      const info = await sendMail({
-        subject: `💇 New Luxe Salon Appointment: ${appointment.service}`,
-        html: appointmentEmail(appointment),
-        replyTo: appointment.email,
-      });
-
-      console.log("✅ Appointment email sent");
-      console.log(info);
-    } catch (mailError) {
-      console.error("❌ Email sending failed:");
-      console.error(mailError);
-    }
-
-    // Send success response
     res.status(201).json({
       success: true,
       message: "Appointment request received.",
       appointmentId: appointment._id,
       storage: isDatabaseReady() ? "mongodb" : "memory",
     });
+
+    sendMail({
+      subject: `New Luxe Salon Appointment: ${appointment.service}`,
+      html: appointmentEmail(appointment),
+      replyTo: appointment.email,
+    })
+      .then((info) => {
+        console.log("Appointment email sent:", info.messageId);
+      })
+      .catch((mailError) => {
+        console.error("Appointment email sending failed:", mailError.message);
+      });
   } catch (error) {
     next(error);
   }
