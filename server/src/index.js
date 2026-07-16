@@ -106,8 +106,9 @@ app.use('/api/contact', contactRoutes);
 const clientDist = path.resolve(__dirname, '../../client/dist');
 const hasClientBuild = fs.existsSync(path.join(clientDist, 'index.html'));
 
-if (isProduction || hasClientBuild) {
+if (hasClientBuild) {
   app.use(express.static(clientDist));
+
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
