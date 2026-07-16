@@ -1,7 +1,7 @@
-const RESEND_API_URL = "https://api.resend.com/emails";
+import nodemailer from "nodemailer";
 
-function hasHttpEmailConfig() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
+function hasSmtpConfig() {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
 function escapeHtml(value = "") {
@@ -21,42 +21,41 @@ function formatDate(value) {
   });
 }
 
+function createTransporter() {
+  if (!hasSmtpConfig()) {
+    console.warn("SMTP email skipped. SMTP_HOST, SMTP_USER, or SMTP_PASS is missing.");
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+    requireTLS: String(process.env.SMTP_PORT || 587) === "587",
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
 export async function sendMail({ to, subject, html, replyTo }) {
-  if (!hasHttpEmailConfig()) {
-    console.warn("HTTP email skipped. RESEND_API_KEY or MAIL_FROM is missing.");
+  const transporter = createTransporter();
+
+  if (!transporter) {
     return { skipped: true };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
-  try {
-    const response = await fetch(RESEND_API_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.MAIL_FROM,
-        to,
-        subject,
-        html,
-        reply_to: replyTo,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data?.message || `HTTP email failed with status ${response.status}`);
-    }
-
-    return data;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return transporter.sendMail({
+    from: process.env.MAIL_FROM || process.env.SMTP_USER,
+    to,
+    replyTo,
+    subject,
+    html,
+  });
 }
 
 function layout({ title, eyebrow, body, accent = "#d7b46a" }) {
