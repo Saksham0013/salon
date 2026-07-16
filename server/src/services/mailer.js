@@ -1,121 +1,166 @@
-import nodemailer from "nodemailer";
+const RESEND_API_URL = "https://api.resend.com/emails";
 
-function hasSmtpConfig() {
-  return Boolean(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS
-  );
+function hasHttpEmailConfig() {
+  return Boolean(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 }
 
-function createTransporter() {
-  if (!hasSmtpConfig()) {
-    throw new Error("SMTP configuration is missing. Check your Render Environment Variables.");
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatDate(value) {
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export async function sendMail({ to, subject, html, replyTo }) {
+  if (!hasHttpEmailConfig()) {
+    console.warn("HTTP email skipped. RESEND_API_KEY or MAIL_FROM is missing.");
+    return { skipped: true };
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true", // Use true only for port 465
-    requireTLS: true,                    // Important for Gmail
-    connectionTimeout: 15000,            // Increased for Render
-    greetingTimeout: 15000,
-    socketTimeout: 30000,
-    
-    // Debug settings (remove in production if you want)
-    debug: true,
-    logger: true,
-
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
-  // Verify connection (helpful for debugging)
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error("❌ Transporter verification failed:", error);
-    } else {
-      console.log("✅ Transporter is ready to send emails");
-    }
-  });
-
-  return transporter;
-}
-
-export async function sendMail({ subject, html, replyTo }) {
-  const transporter = createTransporter();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
-    const info = await transporter.sendMail({
-      from: process.env.MAIL_FROM || process.env.SMTP_USER,
-      to: process.env.MAIL_TO || process.env.SMTP_USER,
-      replyTo,
-      subject,
-      html,
+    const response = await fetch(RESEND_API_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: process.env.MAIL_FROM,
+        to,
+        subject,
+        html,
+        reply_to: replyTo,
+      }),
     });
 
-    console.log("====================================");
-    console.log("✅ EMAIL SENT SUCCESSFULLY");
-    console.log("Message ID:", info.messageId);
-    console.log("Accepted:", info.accepted);
-    console.log("Rejected:", info.rejected);
-    console.log("Response:", info.response);
-    console.log("====================================");
+    const data = await response.json().catch(() => ({}));
 
-    return info;
-  } catch (error) {
-    console.error("====================================");
-    console.error("❌ APPOINTMENT EMAIL FAILED");
-    console.error("Message:", error.message);
-    console.error("Code:", error.code);
-    console.error("Command:", error.command);
-    console.error("Full Error:", error);
-    console.error("====================================");
-    throw error;
+    if (!response.ok) {
+      throw new Error(data?.message || `HTTP email failed with status ${response.status}`);
+    }
+
+    return data;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
-// Keep your email templates unchanged
-export function appointmentEmail(appointment) {
+function layout({ title, eyebrow, body, accent = "#d7b46a" }) {
   return `
-  <!DOCTYPE html>
-  <html>
-  <body style="font-family:Arial,sans-serif">
-
-    <h2>💇 New Luxe Salon Appointment</h2>
-
-    <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;width:100%;">
-      <tr><td><strong>Name</strong></td><td>${appointment.name}</td></tr>
-      <tr><td><strong>Email</strong></td><td>${appointment.email}</td></tr>
-      <tr><td><strong>Phone</strong></td><td>${appointment.phone}</td></tr>
-      <tr><td><strong>Service</strong></td><td>${appointment.service}</td></tr>
-      <tr><td><strong>Date</strong></td><td>${new Date(appointment.preferredDate).toLocaleDateString()}</td></tr>
-      <tr><td><strong>Time</strong></td><td>${appointment.preferredTime}</td></tr>
-      <tr><td><strong>Notes</strong></td><td>${appointment.notes || "No Notes"}</td></tr>
-    </table>
-
-    <br>
-    <p>This appointment was submitted from the Luxe Salon website.</p>
-  </body>
-  </html>
+    <!doctype html>
+    <html>
+      <body style="margin:0;background:#f7f0e8;font-family:Arial,sans-serif;color:#21100f;">
+        <div style="max-width:680px;margin:32px auto;background:#fffaf4;border-radius:18px;overflow:hidden;border:1px solid #ead8b2;">
+          <div style="background:#21100f;color:#fffaf4;padding:28px;text-align:center;">
+            <p style="margin:0 0 8px;text-transform:uppercase;letter-spacing:4px;color:${accent};font-size:12px;font-weight:700;">${eyebrow}</p>
+            <h1 style="margin:0;font-family:Georgia,serif;font-size:34px;">${title}</h1>
+          </div>
+          <div style="padding:30px;">${body}</div>
+          <div style="background:#f7f0e8;padding:18px;text-align:center;color:#7a6257;font-size:13px;">
+            Luxe Salon
+          </div>
+        </div>
+      </body>
+    </html>
   `;
 }
 
-export function contactEmail(message) {
+function appointmentRows(appointment) {
   return `
-  <!DOCTYPE html>
-  <html>
-  <body>
-    <h2>📩 New Contact Message</h2>
-    <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;width:100%;">
-      <tr><td><strong>Name</strong></td><td>${message.name}</td></tr>
-      <tr><td><strong>Email</strong></td><td>${message.email}</td></tr>
-      <tr><td><strong>Subject</strong></td><td>${message.subject}</td></tr>
-      <tr><td><strong>Message</strong></td><td>${message.message}</td></tr>
+    <table style="width:100%;border-collapse:collapse;font-size:15px;">
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Name</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${escapeHtml(appointment.name)}</td></tr>
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Email</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${escapeHtml(appointment.email)}</td></tr>
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Phone</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${escapeHtml(appointment.phone)}</td></tr>
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Service</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${escapeHtml(appointment.service)}</td></tr>
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Date</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${formatDate(appointment.preferredDate)}</td></tr>
+      <tr><td style="padding:12px;border-bottom:1px solid #ead8b2;"><strong>Time</strong></td><td style="padding:12px;border-bottom:1px solid #ead8b2;">${escapeHtml(appointment.preferredTime)}</td></tr>
+      <tr><td style="padding:12px;"><strong>Notes</strong></td><td style="padding:12px;">${escapeHtml(appointment.notes || "-")}</td></tr>
     </table>
-  </body>
-  </html>
   `;
+}
+
+export function appointmentNotificationEmail(appointment) {
+  return layout({
+    eyebrow: "New Appointment",
+    title: "Booking Request Received",
+    body: `${appointmentRows(appointment)}<p style="margin-top:22px;color:#7a6257;">This appointment was submitted from the Luxe Salon website.</p>`,
+  });
+}
+
+export function appointmentConfirmationEmail(appointment) {
+  return layout({
+    eyebrow: "Appointment Request",
+    title: `Thank you, ${escapeHtml(appointment.name)}`,
+    body: `
+      <p style="font-size:16px;line-height:1.7;">Your appointment request has been received. Our team will review your booking and confirm it shortly.</p>
+      ${appointmentRows(appointment)}
+    `,
+  });
+}
+
+export function appointmentApprovedEmail(appointment) {
+  return layout({
+    eyebrow: "Confirmed",
+    title: "Appointment Confirmed",
+    body: `<p style="font-size:16px;line-height:1.7;">Hello ${escapeHtml(appointment.name)}, your appointment is confirmed. Please arrive 10 minutes early.</p>${appointmentRows(appointment)}`,
+  });
+}
+
+export function appointmentRejectedEmail(appointment, reason = "The selected slot is unavailable.") {
+  return layout({
+    eyebrow: "Update",
+    title: "Appointment Could Not Be Confirmed",
+    accent: "#e4b7a7",
+    body: `<p style="font-size:16px;line-height:1.7;">Hello ${escapeHtml(appointment.name)}, we could not confirm your appointment.</p><p><strong>Reason:</strong> ${escapeHtml(reason)}</p>`,
+  });
+}
+
+export function appointmentRescheduledEmail(appointment, newDate, newTime) {
+  return layout({
+    eyebrow: "Rescheduled",
+    title: "Appointment Rescheduled",
+    body: `
+      <p style="font-size:16px;line-height:1.7;">Hello ${escapeHtml(appointment.name)}, your appointment has been rescheduled.</p>
+      <p><strong>New Date:</strong> ${formatDate(newDate)}</p>
+      <p><strong>New Time:</strong> ${escapeHtml(newTime)}</p>
+    `,
+  });
+}
+
+export function contactNotificationEmail(message) {
+  return layout({
+    eyebrow: "New Contact Message",
+    title: escapeHtml(message.subject),
+    body: `
+      <p><strong>Name:</strong> ${escapeHtml(message.name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(message.email)}</p>
+      <p><strong>Message:</strong></p>
+      <p style="line-height:1.7;">${escapeHtml(message.message)}</p>
+    `,
+  });
+}
+
+export function contactAutoReplyEmail(message) {
+  return layout({
+    eyebrow: "Message Received",
+    title: `Hi ${escapeHtml(message.name)}`,
+    body: `
+      <p style="font-size:16px;line-height:1.7;">Thank you for contacting Luxe Salon. We have received your message and our team will get back to you within 24 hours.</p>
+      <p style="margin-top:24px;">Regards,<br><strong>Luxe Salon</strong></p>
+    `,
+  });
 }

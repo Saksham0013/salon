@@ -1,7 +1,34 @@
 import ContactMessage from "../models/ContactMessage.js";
 import { isDatabaseReady } from "../config/database.js";
-import { contactEmail, sendMail } from "../services/mailer.js";
+import {
+  contactAutoReplyEmail,
+  contactNotificationEmail,
+  sendMail,
+} from "../services/mailer.js";
 import { saveContactMessage } from "../services/memoryStore.js";
+
+function sendContactEmails(message) {
+  const salonEmail = process.env.SALON_EMAIL;
+
+  if (salonEmail) {
+    sendMail({
+      to: salonEmail,
+      subject: `New Contact Message - ${message.subject}`,
+      html: contactNotificationEmail(message),
+      replyTo: message.email,
+    }).catch((error) => {
+      console.error("Salon contact email failed:", error.message);
+    });
+  }
+
+  sendMail({
+    to: message.email,
+    subject: "Thank you for contacting Luxe Salon",
+    html: contactAutoReplyEmail(message),
+  }).catch((error) => {
+    console.error("Customer contact auto-reply failed:", error.message);
+  });
+}
 
 export async function createContactMessage(req, res, next) {
   try {
@@ -16,17 +43,7 @@ export async function createContactMessage(req, res, next) {
       storage: isDatabaseReady() ? "mongodb" : "memory",
     });
 
-    sendMail({
-      subject: `New Contact Message: ${message.subject}`,
-      html: contactEmail(message),
-      replyTo: message.email,
-    })
-      .then((info) => {
-        console.log("Contact email sent:", info.messageId);
-      })
-      .catch((mailError) => {
-        console.error("Contact email sending failed:", mailError.message);
-      });
+    sendContactEmails(message);
   } catch (error) {
     next(error);
   }

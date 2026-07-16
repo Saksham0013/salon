@@ -76,3 +76,19 @@ body {
 .field::placeholder {
   color: rgba(17, 16, 14, 0.46);
 }
+
+@keyframes adminSparkle {
+  0%, 100% {
+    opacity: 0.16;
+    transform: translateY(0) scale(0.8);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: translateY(-14px) scale(1.35);
+  }
+}
+
+.admin-sparkle {
+  animation: adminSparkle 4.8s ease-in-out infinite;
+}
