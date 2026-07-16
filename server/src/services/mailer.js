@@ -1,3 +1,4 @@
+import dns from "node:dns";
 import nodemailer from "nodemailer";
 
 function hasSmtpConfig() {
@@ -27,11 +28,18 @@ function createTransporter() {
     return null;
   }
 
+  console.log(
+    `SMTP configured: host=${process.env.SMTP_HOST}, port=${process.env.SMTP_PORT || 587}, secure=${process.env.SMTP_SECURE}`
+  );
+
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
     family: 4,
+    lookup(hostname, _options, callback) {
+      dns.lookup(hostname, { family: 4 }, callback);
+    },
     requireTLS: String(process.env.SMTP_PORT || 587) === "587",
     connectionTimeout: 10000,
     greetingTimeout: 10000,
