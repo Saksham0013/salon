@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -86,8 +87,10 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/contact', contactRoutes);
 
-if (isProduction) {
-  const clientDist = path.resolve(__dirname, '../../client/dist');
+const clientDist = path.resolve(__dirname, '../../client/dist');
+const hasClientBuild = fs.existsSync(path.join(clientDist, 'index.html'));
+
+if (isProduction || hasClientBuild) {
   app.use(express.static(clientDist));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
