@@ -1,6 +1,8 @@
 import dns from "node:dns";
 import nodemailer from "nodemailer";
 
+dns.setDefaultResultOrder("ipv4first");
+
 function hasSmtpConfig() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
@@ -22,18 +24,31 @@ function formatDate(value) {
   });
 }
 
-function createTransporter() {
+async function resolveSmtpHost(hostname) {
+  try {
+    const addresses = await dns.promises.resolve4(hostname);
+    return addresses[0] || hostname;
+  } catch (error) {
+    console.warn(`SMTP IPv4 DNS lookup failed for ${hostname}: ${error.message}`);
+    return hostname;
+  }
+}
+
+async function createTransporter() {
   if (!hasSmtpConfig()) {
     console.warn("SMTP email skipped. SMTP_HOST, SMTP_USER, or SMTP_PASS is missing.");
     return null;
   }
 
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpAddress = await resolveSmtpHost(smtpHost);
+
   console.log(
-    `SMTP configured: host=${process.env.SMTP_HOST}, port=${process.env.SMTP_PORT || 587}, secure=${process.env.SMTP_SECURE}`
+    `SMTP configured: host=${smtpHost}, address=${smtpAddress}, port=${process.env.SMTP_PORT || 587}, secure=${process.env.SMTP_SECURE}`
   );
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: smtpAddress,
     port: Number(process.env.SMTP_PORT || 587),
     secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
     family: 4,
@@ -48,11 +63,14 @@ function createTransporter() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS?.replace(/\s/g, ""),
     },
+    tls: {
+      servername: smtpHost,
+    },
   });
 }
 
 export async function sendMail({ to, subject, html, replyTo }) {
-  const transporter = createTransporter();
+  const transporter = await createTransporter();
 
   if (!transporter) {
     return { skipped: true };
