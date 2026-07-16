@@ -2,8 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Send } from 'lucide-react';
 import Button from './Button.jsx';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { apiPath } from '../utils/api.js';
 
 const initial = { name: '', email: '', subject: '', message: '' };
 
@@ -20,7 +19,7 @@ export default function ContactForm() {
     event.preventDefault();
     setStatus({ state: 'loading', message: 'Sending your message...' });
     try {
-      await axios.post(`${API_URL}/api/contact`, form);
+      await axios.post(apiPath('/api/contact'), form);
       setForm(initial);
       setStatus({ state: 'success', message: 'Message received. We will reply soon.' });
     } catch (error) {

@@ -3,8 +3,7 @@ import axios from 'axios';
 import { CalendarCheck } from 'lucide-react';
 import Button from './Button.jsx';
 import { services } from '../data/salon.js';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { apiPath } from '../utils/api.js';
 
 const initial = {
   name: '',
@@ -29,7 +28,7 @@ export default function AppointmentForm() {
     event.preventDefault();
     setStatus({ state: 'loading', message: 'Sending your appointment request...' });
     try {
-      await axios.post(`${API_URL}/api/appointments`, form);
+      await axios.post(apiPath('/api/appointments'), form);
       setForm(initial);
       setStatus({
         state: 'success',
