@@ -10,17 +10,15 @@ import About from './pages/About.jsx';
 import Gallery from './pages/Gallery.jsx';
 import Booking from './pages/Booking.jsx';
 import Contact from './pages/Contact.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 export default function App() {
   const location = useLocation();
-  const isAdmin = location.pathname.startsWith('/admin');
 
   return (
     <div className="min-h-screen overflow-x-hidden font-sans text-ink">
       <ScrollToTop />
-      {!isAdmin && <Navbar />}
+      <Navbar />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<Home />} />
@@ -29,12 +27,11 @@ export default function App() {
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/book" element={<Booking />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AnimatePresence>
-      {!isAdmin && <WhatsAppButton />}
-      {!isAdmin && <Footer />}
+      <WhatsAppButton />
+      <Footer />
     </div>
   );
 }
