@@ -182,18 +182,18 @@ export async function sendMail({ to, subject, html, replyTo }) {
   }
 
   // 2. SMTP (works locally; Render blocks ports 465/587)
-  console.log(`[MAILER] [TRY] Attempting delivery via SMTP (local transporter) to: ${to}...`);
-  try {
-    const result = await sendViaSmtp({ to, subject, html, replyTo });
-    console.log(`[MAILER] [SUCCESS] SMTP delivery succeeded for: ${to}`);
-    return result;
-  } catch (err) {
-    const isTimeout = err.message?.includes("ETIMEDOUT") || err.code === "ETIMEDOUT";
-    if (isTimeout) {
-      console.error(`[MAILER] [ERROR] SMTP Connection timed out for ${to}. Your hosting provider (e.g. Render) likely blocks outbound SMTP ports (465/587). Please set BREVO_API_KEY to bypass this restriction.`);
-    } else {
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (!isProduction) {
+    console.log(`[MAILER] [TRY] Attempting delivery via SMTP (local transporter) to: ${to}...`);
+    try {
+      const result = await sendViaSmtp({ to, subject, html, replyTo });
+      console.log(`[MAILER] [SUCCESS] SMTP delivery succeeded for: ${to}`);
+      return result;
+    } catch (err) {
       console.error(`[MAILER] [ERROR] SMTP delivery failed for ${to}. Error:`, err);
     }
+  } else {
+    console.log("[MAILER] [INFO] Skipping SMTP delivery in production environment (Render blocks ports 465/587) to prevent connection timeouts.");
   }
 
   // 3. FormSubmit (last resort)
