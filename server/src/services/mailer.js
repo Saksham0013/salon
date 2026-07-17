@@ -97,34 +97,36 @@ async function sendViaFormSubmit({ to, subject, html, replyTo }) {
   const salonEmail = process.env.FORMSUBMIT_EMAIL || process.env.SALON_EMAIL;
 
   if (!salonEmail || to !== process.env.SALON_EMAIL) {
-    throw new Error("SMTP failed and FormSubmit fallback is only used for salon notification emails.");
+    console.warn("Customer auto-response skipped because SMTP is unavailable on this host.");
+    return { skipped: true, reason: "customer_autoresponse_requires_smtp" };
   }
 
-  const payload = new URLSearchParams({
+  const payload = {
     _subject: subject,
     _template: "table",
     _captcha: "false",
-    _autoresponse:
-      "Thank you for booking with Luxe Salon. We received your appointment request and will confirm availability shortly.",
     name: "Luxe Salon Website",
     email: replyTo || salonEmail,
     message: stripHtml(html),
-  });
+  };
 
-  const response = await fetch(`https://formsubmit.co/${encodeURIComponent(salonEmail)}`, {
+  const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(salonEmail)}`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-    body: payload,
+    body: JSON.stringify(payload),
   });
 
+  const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    throw new Error(`FormSubmit fallback failed with status ${response.status}`);
+    throw new Error(data.message || `FormSubmit fallback failed with status ${response.status}`);
   }
 
   console.log(`FormSubmit fallback sent salon notification to ${salonEmail}`);
-  return { fallback: "formsubmit", ok: true };
+  return { fallback: "formsubmit", ok: true, data };
 }
 
 function stripHtml(html) {
