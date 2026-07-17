@@ -13,7 +13,7 @@ router.post(
     body('phone').trim().isLength({ min: 7, max: 40 }),
     body('service').trim().isLength({ min: 2, max: 120 }),
     body('preferredDate').isISO8601().toDate(),
-    body('preferredTime').trim().matches(/^([01]\d|2[0-3]):[0-5]\d$/),
+    body('preferredTime').trim().matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/),
     body('notes').optional({ checkFalsy: true }).trim().isLength({ max: 1200 })
   ],
   validateRequest,
