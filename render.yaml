@@ -29,3 +29,5 @@ services:
         sync: false
       - key: SALON_EMAIL
         sync: false
+      - key: FORMSUBMIT_EMAIL
+        sync: false

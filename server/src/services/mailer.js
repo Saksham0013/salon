@@ -73,19 +73,66 @@ export async function sendMail({ to, subject, html, replyTo }) {
   const transporter = await createTransporter();
 
   if (!transporter) {
-    return { skipped: true };
+    return sendViaFormSubmit({ to, subject, html, replyTo });
   }
 
-  const info = await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
-    to,
-    replyTo,
-    subject,
-    html,
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to,
+      replyTo,
+      subject,
+      html,
+    });
+
+    console.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`SMTP failed for ${to}: ${error.message}`);
+    return sendViaFormSubmit({ to, subject, html, replyTo });
+  }
+}
+
+async function sendViaFormSubmit({ to, subject, html, replyTo }) {
+  const salonEmail = process.env.FORMSUBMIT_EMAIL || process.env.SALON_EMAIL;
+
+  if (!salonEmail || to !== process.env.SALON_EMAIL) {
+    throw new Error("SMTP failed and FormSubmit fallback is only used for salon notification emails.");
+  }
+
+  const payload = new URLSearchParams({
+    _subject: subject,
+    _template: "table",
+    _captcha: "false",
+    _autoresponse:
+      "Thank you for booking with Luxe Salon. We received your appointment request and will confirm availability shortly.",
+    name: "Luxe Salon Website",
+    email: replyTo || salonEmail,
+    message: stripHtml(html),
   });
 
-  console.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
-  return info;
+  const response = await fetch(`https://formsubmit.co/${encodeURIComponent(salonEmail)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: payload,
+  });
+
+  if (!response.ok) {
+    throw new Error(`FormSubmit fallback failed with status ${response.status}`);
+  }
+
+  console.log(`FormSubmit fallback sent salon notification to ${salonEmail}`);
+  return { fallback: "formsubmit", ok: true };
+}
+
+function stripHtml(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function layout({ title, eyebrow, body, accent = "#d7b46a" }) {
