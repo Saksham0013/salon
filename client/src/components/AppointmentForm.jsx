@@ -57,8 +57,14 @@ export default function AppointmentForm() {
         </select>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <input className="field" type="date" name="preferredDate" value={form.preferredDate} onChange={update} required />
-        <input className="field" type="time" name="preferredTime" value={form.preferredTime} onChange={update} required />
+        <div className="flex flex-col">
+          <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredDate">Preferred Date</label>
+          <input id="preferredDate" className="field w-full" type="date" name="preferredDate" value={form.preferredDate} onChange={update} required />
+        </div>
+        <div className="flex flex-col">
+          <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredTime">Preferred Time</label>
+          <input id="preferredTime" className="field w-full" type="time" name="preferredTime" value={form.preferredTime} onChange={update} required />
+        </div>
       </div>
       <textarea className="field min-h-32 resize-y" name="notes" value={form.notes} onChange={update} placeholder="Tell us about your goals, timing, or special requests." />
       <Button type="submit" disabled={status.state === 'loading'} className="w-full disabled:cursor-not-allowed disabled:opacity-60">
