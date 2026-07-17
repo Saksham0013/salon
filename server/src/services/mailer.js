@@ -47,24 +47,28 @@ async function createTransporter() {
     `SMTP configured: host=${smtpHost}, address=${smtpAddress}, port=${process.env.SMTP_PORT || 587}, secure=${process.env.SMTP_SECURE}`
   );
 
+  const smtpPort = Number(process.env.SMTP_PORT || 587);
+  const smtpSecure = String(process.env.SMTP_SECURE).toLowerCase() === "true";
+
   return nodemailer.createTransport({
     host: smtpAddress,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE).toLowerCase() === "true",
+    port: smtpPort,
+    secure: smtpSecure,           // true = SSL/TLS (port 465), false = STARTTLS (port 587)
     family: 4,
     lookup(hostname, _options, callback) {
       dns.lookup(hostname, { family: 4 }, callback);
     },
-    requireTLS: String(process.env.SMTP_PORT || 587) === "587",
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    requireTLS: !smtpSecure && smtpPort === 587,  // Only enforce STARTTLS on port 587
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS?.replace(/\s/g, ""),
     },
     tls: {
       servername: smtpHost,
+      rejectUnauthorized: true,
     },
   });
 }
@@ -77,6 +81,7 @@ export async function sendMail({ to, subject, html, replyTo }) {
   }
 
   try {
+    await transporter.verify();
     const info = await transporter.sendMail({
       from: process.env.MAIL_FROM || process.env.SMTP_USER,
       to,
@@ -88,7 +93,10 @@ export async function sendMail({ to, subject, html, replyTo }) {
     console.log(`Email sent successfully to ${to}. Message ID: ${info.messageId}`);
     return info;
   } catch (error) {
-    console.error(`SMTP failed for ${to}: ${error.message}`);
+    console.error(`SMTP failed for ${to}: [${error.code || error.responseCode || "ERR"}] ${error.message}`);
+    if (error.responseCode === 535 || error.message.includes("Invalid login") || error.message.includes("Username and Password")) {
+      console.error(">>> Gmail SMTP auth failed. Make sure you are using an App Password (not your regular password). Generate one at: https://myaccount.google.com/apppasswords");
+    }
     return sendViaFormSubmit({ to, subject, html, replyTo });
   }
 }
@@ -96,18 +104,25 @@ export async function sendMail({ to, subject, html, replyTo }) {
 async function sendViaFormSubmit({ to, subject, html, replyTo }) {
   const salonEmail = process.env.FORMSUBMIT_EMAIL || process.env.SALON_EMAIL;
 
-  if (!salonEmail || to !== process.env.SALON_EMAIL) {
-    console.warn("Customer auto-response skipped because SMTP is unavailable on this host.");
-    return { skipped: true, reason: "customer_autoresponse_requires_smtp" };
+  if (!salonEmail) {
+    console.warn("FormSubmit fallback skipped: FORMSUBMIT_EMAIL / SALON_EMAIL is not set.");
+    return { skipped: true, reason: "no_salon_email_configured" };
   }
 
+  // For customer emails: forward via FormSubmit but send it to the salon
+  // so the salon owner can see it (FormSubmit can only send to verified addresses)
+  const isCustomerEmail = to !== salonEmail;
+  const deliverTo = isCustomerEmail ? salonEmail : salonEmail;
+
   const payload = {
-    _subject: subject,
+    _subject: isCustomerEmail ? `[AUTO-REPLY COPY] ${subject} → ${to}` : subject,
     _template: "table",
     _captcha: "false",
     name: "Luxe Salon Website",
-    email: replyTo || salonEmail,
-    message: stripHtml(html),
+    email: replyTo || to,
+    message: isCustomerEmail
+      ? `NOTE: This is a copy of the auto-response that should have been sent to ${to}.\n\n${stripHtml(html)}`
+      : stripHtml(html),
   };
 
   const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(salonEmail)}`, {
@@ -122,11 +137,17 @@ async function sendViaFormSubmit({ to, subject, html, replyTo }) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    console.error(`FormSubmit fallback failed (status ${response.status}):`, data);
     throw new Error(data.message || `FormSubmit fallback failed with status ${response.status}`);
   }
 
-  console.log(`FormSubmit fallback sent salon notification to ${salonEmail}`);
-  return { fallback: "formsubmit", ok: true, data };
+  if (isCustomerEmail) {
+    console.log(`FormSubmit fallback: customer auto-response copy sent to salon (${salonEmail}) for customer ${to}`);
+  } else {
+    console.log(`FormSubmit fallback: salon notification sent to ${salonEmail}`);
+  }
+
+  return { fallback: "formsubmit", ok: true, isCustomerCopy: isCustomerEmail, data };
 }
 
 function stripHtml(html) {
