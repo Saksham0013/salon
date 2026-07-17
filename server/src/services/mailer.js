@@ -18,6 +18,65 @@ function formatDate(value) {
 }
 
 export async function sendMail({ to, subject, html, replyTo }) {
+  if (process.env.GOOGLE_SCRIPT_URL) {
+    try {
+      return await sendViaGoogleScript({ to, subject, html, replyTo });
+    } catch (error) {
+      console.error(`[MAILER] Google Apps Script email failed for ${to}. Falling back if Brevo is configured.`, error);
+    }
+  }
+
+  return sendViaBrevo({ to, subject, html, replyTo });
+}
+
+async function sendViaGoogleScript({ to, subject, html, replyTo }) {
+  const scriptUrl = process.env.GOOGLE_SCRIPT_URL;
+  const scriptSecret = process.env.GOOGLE_SCRIPT_SECRET;
+  const senderName = process.env.GOOGLE_SCRIPT_SENDER_NAME || process.env.BREVO_SENDER_NAME || "Luxe Salon";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  console.log(`[MAILER] Sending Gmail email via Google Apps Script to ${to} | Subject: "${subject}"`);
+
+  try {
+    const response = await fetch(scriptUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify({
+        secret: scriptSecret,
+        senderName,
+        to,
+        subject,
+        html,
+        replyTo,
+      }),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(text || "{}");
+    } catch {
+      throw new Error("Google Apps Script returned a non-JSON response. Check deployment access is set to Anyone.");
+    }
+
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || `Google Apps Script failed with status ${response.status}`);
+    }
+
+    console.log(`[MAILER] Gmail email sent via Google Apps Script to ${to}.`);
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function sendViaBrevo({ to, subject, html, replyTo }) {
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
   const senderName = process.env.BREVO_SENDER_NAME || "Luxe Salon";
