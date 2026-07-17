@@ -9,7 +9,7 @@ router.post(
   '/',
   [
     body('name').trim().isLength({ min: 2, max: 120 }),
-    body('email').trim().isEmail().normalizeEmail(),
+    body('email').trim().isEmail().normalizeEmail({ gmail_remove_dots: false, gmail_remove_subaddress: false }),
     body('phone').trim().isLength({ min: 7, max: 40 }),
     body('service').trim().isLength({ min: 2, max: 120 }),
     body('preferredDate').isISO8601().toDate(),
