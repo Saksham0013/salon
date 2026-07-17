@@ -165,32 +165,45 @@ function stripHtml(html) {
 // ─── Main sendMail (Brevo → SMTP → FormSubmit) ───────────────────────────────
 
 export async function sendMail({ to, subject, html, replyTo }) {
+  console.log(`[MAILER] [START] Initiating sendMail request to: ${to} | Subject: "${subject}"`);
+
   // 1. Brevo HTTP API (works on Render — uses port 443)
   if (process.env.BREVO_API_KEY) {
+    console.log(`[MAILER] [TRY] Attempting delivery via Brevo Cloud API to: ${to}...`);
     try {
-      return await sendViaBrevo({ to, subject, html, replyTo });
+      const result = await sendViaBrevo({ to, subject, html, replyTo });
+      console.log(`[MAILER] [SUCCESS] Brevo delivery succeeded for: ${to}`);
+      return result;
     } catch (err) {
-      console.error(`[Brevo] Failed for ${to}: ${err.message}`);
+      console.error(`[MAILER] [ERROR] Brevo delivery failed for ${to}. Error:`, err);
     }
+  } else {
+    console.log("[MAILER] [INFO] BREVO_API_KEY is not defined. Skipping Brevo delivery.");
   }
 
   // 2. SMTP (works locally; Render blocks ports 465/587)
+  console.log(`[MAILER] [TRY] Attempting delivery via SMTP (local transporter) to: ${to}...`);
   try {
-    return await sendViaSmtp({ to, subject, html, replyTo });
+    const result = await sendViaSmtp({ to, subject, html, replyTo });
+    console.log(`[MAILER] [SUCCESS] SMTP delivery succeeded for: ${to}`);
+    return result;
   } catch (err) {
     const isTimeout = err.message?.includes("ETIMEDOUT") || err.code === "ETIMEDOUT";
     if (isTimeout) {
-      console.error(`[SMTP] Connection timed out — your hosting provider likely blocks SMTP ports. Set BREVO_API_KEY to enable cloud email delivery.`);
+      console.error(`[MAILER] [ERROR] SMTP Connection timed out for ${to}. Your hosting provider (e.g. Render) likely blocks outbound SMTP ports (465/587). Please set BREVO_API_KEY to bypass this restriction.`);
     } else {
-      console.error(`[SMTP] Failed for ${to}: ${err.message}`);
+      console.error(`[MAILER] [ERROR] SMTP delivery failed for ${to}. Error:`, err);
     }
   }
 
   // 3. FormSubmit (last resort)
+  console.log(`[MAILER] [TRY] Attempting delivery via FormSubmit HTTP fallback to: ${to}...`);
   try {
-    return await sendViaFormSubmit({ to, subject, html, replyTo });
+    const result = await sendViaFormSubmit({ to, subject, html, replyTo });
+    console.log(`[MAILER] [SUCCESS] FormSubmit delivery succeeded for: ${to}`);
+    return result;
   } catch (err) {
-    console.error(`[FormSubmit] Failed for ${to}: ${err.message}`);
+    console.error(`[MAILER] [FATAL ERROR] FormSubmit delivery failed for ${to}. Error:`, err);
     throw err;
   }
 }
