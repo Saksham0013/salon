@@ -21,7 +21,7 @@ const port = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
 const clientUrls = (process.env.CLIENT_URL || '')
   .split(',')
-  .map((url) => url.trim())
+  .map((url) => url.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
 try {
