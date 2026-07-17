@@ -17,7 +17,7 @@ router.post(
       const d = new Date(value);
       return !isNaN(d.getTime());
     }).toDate(),
-    body('preferredTime').trim().matches(/^(0?[1-9]|1[0-2]|2[0-3]|[0-9]):[0-5]\d(:[0-5]\d)?(\s?[APap][Mm])?$/),
+    body('preferredTime').trim().matches(/^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?(\s?[APap][Mm])?$/),
     body('notes').optional({ checkFalsy: true }).trim().isLength({ max: 1200 })
   ],
   validateRequest,
