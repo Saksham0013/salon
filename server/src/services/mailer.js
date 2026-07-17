@@ -135,9 +135,18 @@ async function sendViaFormSubmit({ to, subject, html, replyTo }) {
       : stripHtml(html),
   };
 
+  const clientUrl = process.env.CLIENT_URL || "https://salon-five-pied.vercel.app";
+  const originUrl = clientUrl.replace(/\/$/, "");
+  const refererUrl = originUrl + "/";
+
   const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(salonEmail)}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "Origin": originUrl,
+      "Referer": refererUrl,
+    },
     body: JSON.stringify(payload),
   });
 
