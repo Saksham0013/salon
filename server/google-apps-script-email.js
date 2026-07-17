@@ -1,5 +1,12 @@
 const SCRIPT_SECRET = "replace-this-with-your-secret";
 
+function doGet() {
+  return jsonResponse({
+    success: true,
+    service: "luxe-salon-google-mailer",
+  });
+}
+
 function doPost(event) {
   try {
     const payload = JSON.parse(event.postData.contents || "{}");

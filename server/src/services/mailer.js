@@ -62,7 +62,10 @@ async function sendViaGoogleScript({ to, subject, html, replyTo }) {
     try {
       data = JSON.parse(text || "{}");
     } catch {
-      throw new Error("Google Apps Script returned a non-JSON response. Check deployment access is set to Anyone.");
+      const preview = text.replace(/\s+/g, " ").slice(0, 160);
+      throw new Error(
+        `Google Apps Script returned non-JSON status ${response.status}. Use the /exec Web App URL and set access to Anyone. Response starts: ${preview}`
+      );
     }
 
     if (!response.ok || data.success === false) {
