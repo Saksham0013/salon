@@ -28,7 +28,27 @@ export default function AppointmentForm() {
     event.preventDefault();
     setStatus({ state: 'loading', message: 'Sending your appointment request...' });
     try {
+      // 1. Save to MongoDB backend database
       await axios.post(apiPath('/api/appointments'), form);
+
+      // 2. Dispatch email directly from client browser to bypass backend SMTP blocks / FormSubmit server blocks
+      try {
+        await axios.post('https://formsubmit.co/ajax/agraharisaksham0109@gmail.com', {
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          service: form.service,
+          preferredDate: form.preferredDate,
+          preferredTime: form.preferredTime,
+          notes: form.notes || '-',
+          _subject: `New Appointment - ${form.service}`,
+          _template: 'table',
+          _captcha: 'false'
+        });
+      } catch (emailErr) {
+        console.error('Client-side email dispatch failed:', emailErr);
+      }
+
       setForm(initial);
       setStatus({
         state: 'success',

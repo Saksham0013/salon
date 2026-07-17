@@ -19,7 +19,24 @@ export default function ContactForm() {
     event.preventDefault();
     setStatus({ state: 'loading', message: 'Sending your message...' });
     try {
+      // 1. Save to MongoDB database via backend
       await axios.post(apiPath('/api/contact'), form);
+
+      // 2. Dispatch email directly from browser via FormSubmit
+      try {
+        await axios.post('https://formsubmit.co/ajax/agraharisaksham0109@gmail.com', {
+          name: form.name,
+          email: form.email,
+          subject: form.subject,
+          message: form.message,
+          _subject: `New Contact Form Message: ${form.subject}`,
+          _template: 'table',
+          _captcha: 'false'
+        });
+      } catch (emailErr) {
+        console.error('Client-side email dispatch failed:', emailErr);
+      }
+
       setForm(initial);
       setStatus({ state: 'success', message: 'Message received. We will reply soon.' });
     } catch (error) {
