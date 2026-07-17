@@ -51,7 +51,7 @@ export default function Contact() {
           title="Luxe Salon map"
           className="h-full w-full opacity-80 grayscale"
           loading="lazy"
-          src="https://maps.google.com/maps?q=Kunserwa%20Nautanwa%20Bazar%20Maharajganj%20Uttar%20Pradesh&t=&z=13&ie=UTF8&iwloc=&output=embed"
+          src="https://maps.google.com/maps?q=Karbala%20Rd%20Nautanwa%20Uttar%20Pradesh%20273164&t=&z=15&ie=UTF8&iwloc=&output=embed"
         />
       </section>
     </PageTransition>

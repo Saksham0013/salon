@@ -1,9 +1,4 @@
-import dns from "node:dns";
-import nodemailer from "nodemailer";
-
-dns.setDefaultResultOrder("ipv4first");
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 function escapeHtml(value = "") {
   return String(value)
@@ -22,202 +17,61 @@ function formatDate(value) {
   });
 }
 
-// ─── Brevo HTTP API ──────────────────────────────────────────────────────────
-
-async function sendViaBrevo({ to, subject, html, replyTo }) {
+export async function sendMail({ to, subject, html, replyTo }) {
   const apiKey = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SALON_EMAIL;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const senderName = process.env.BREVO_SENDER_NAME || "Luxe Salon";
 
-  if (!apiKey) throw new Error("BREVO_API_KEY is not set");
-  if (!senderEmail) throw new Error("BREVO_SENDER_EMAIL is not set");
+  if (!apiKey) {
+    throw new Error("BREVO_API_KEY is not configured in environment variables.");
+  }
 
-  const body = {
-    sender: { name: "Luxe Salon", email: senderEmail },
+  if (!senderEmail) {
+    throw new Error("BREVO_SENDER_EMAIL is not configured in environment variables.");
+  }
+
+  const payload = {
+    sender: { name: senderName, email: senderEmail },
     to: [{ email: to }],
     subject,
     htmlContent: html,
   };
-  if (replyTo) body.replyTo = { email: replyTo };
 
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Brevo error ${res.status}: ${err.message || JSON.stringify(err)}`);
+  if (replyTo) {
+    payload.replyTo = { email: replyTo };
   }
 
-  const data = await res.json();
-  console.log(`[Brevo] Email sent to ${to}. Message ID: ${data.messageId}`);
-  return data;
-}
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
 
-// ─── SMTP fallback (local dev only — Render blocks SMTP ports) ───────────────
+  console.log(`[MAILER] Sending Brevo email to ${to} | Subject: "${subject}"`);
 
-function hasSmtpConfig() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-}
-
-async function resolveSmtpHost(hostname) {
   try {
-    const addresses = await dns.promises.resolve4(hostname);
-    return addresses[0] || hostname;
-  } catch {
-    return hostname;
-  }
-}
+    const response = await fetch(BREVO_API_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
 
-async function createTransporter() {
-  if (!hasSmtpConfig()) return null;
+    const data = await response.json().catch(() => ({}));
 
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpAddress = await resolveSmtpHost(smtpHost);
-  const smtpPort = Number(process.env.SMTP_PORT || 587);
-  const smtpSecure = String(process.env.SMTP_SECURE).toLowerCase() === "true";
-
-  return nodemailer.createTransport({
-    host: smtpAddress,
-    port: smtpPort,
-    secure: smtpSecure,
-    family: 4,
-    lookup(hostname, _options, callback) {
-      dns.lookup(hostname, { family: 4 }, callback);
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS?.replace(/\s/g, ""),
-    },
-    tls: { servername: smtpHost, rejectUnauthorized: true },
-  });
-}
-
-async function sendViaSmtp({ to, subject, html, replyTo }) {
-  const transporter = await createTransporter();
-  if (!transporter) throw new Error("SMTP not configured");
-
-  await transporter.verify();
-  const info = await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
-    to,
-    replyTo,
-    subject,
-    html,
-  });
-  console.log(`[SMTP] Email sent to ${to}. Message ID: ${info.messageId}`);
-  return info;
-}
-
-// ─── FormSubmit last-resort fallback ────────────────────────────────────────
-
-async function sendViaFormSubmit({ to, subject, html, replyTo }) {
-  const salonEmail = process.env.FORMSUBMIT_EMAIL || process.env.SALON_EMAIL;
-  if (!salonEmail) throw new Error("No FORMSUBMIT_EMAIL / SALON_EMAIL configured");
-
-  const isCustomerEmail = to !== salonEmail;
-  const payload = {
-    _subject: isCustomerEmail ? `[AUTO-REPLY COPY] ${subject} → ${to}` : subject,
-    _template: "table",
-    _captcha: "false",
-    name: "Luxe Salon Website",
-    email: replyTo || to,
-    message: isCustomerEmail
-      ? `NOTE: This is a copy of the auto-response that should have been sent to ${to}.\n\n${stripHtml(html)}`
-      : stripHtml(html),
-  };
-
-  const clientUrl = process.env.CLIENT_URL || "https://salon-five-pied.vercel.app";
-  const originUrl = clientUrl.replace(/\/$/, "");
-  const refererUrl = originUrl + "/";
-
-  const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(salonEmail)}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "Origin": originUrl,
-      "Referer": refererUrl,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    const msg = `FormSubmit failed with status ${res.status}`;
-    if (res.status === 403) {
-      console.error(`[FormSubmit] 403 Forbidden for ${salonEmail}. ACTION REQUIRED: Go to https://formsubmit.co, enter "${salonEmail}", and click the activation link sent to that inbox.`);
+    if (!response.ok) {
+      throw new Error(
+        `Brevo failed with status ${response.status}: ${data.message || JSON.stringify(data)}`
+      );
     }
-    throw new Error(data.message || msg);
-  }
 
-  console.log(`[FormSubmit] Email delivered for ${to} via FormSubmit fallback`);
-  return { fallback: "formsubmit", ok: true };
-}
-
-function stripHtml(html) {
-  return String(html || "")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// ─── Main sendMail (Brevo → SMTP → FormSubmit) ───────────────────────────────
-
-export async function sendMail({ to, subject, html, replyTo }) {
-  console.log(`[MAILER] [START] Initiating sendMail request to: ${to} | Subject: "${subject}"`);
-
-  // 1. Brevo HTTP API (works on Render — uses port 443)
-  if (process.env.BREVO_API_KEY) {
-    console.log(`[MAILER] [TRY] Attempting delivery via Brevo Cloud API to: ${to}...`);
-    try {
-      const result = await sendViaBrevo({ to, subject, html, replyTo });
-      console.log(`[MAILER] [SUCCESS] Brevo delivery succeeded for: ${to}`);
-      return result;
-    } catch (err) {
-      console.error(`[MAILER] [ERROR] Brevo delivery failed for ${to}. Error:`, err);
-    }
-  } else {
-    console.log("[MAILER] [INFO] BREVO_API_KEY is not defined. Skipping Brevo delivery.");
-  }
-
-  // 2. SMTP (works locally; Render blocks ports 465/587)
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
-  if (!isProduction) {
-    console.log(`[MAILER] [TRY] Attempting delivery via SMTP (local transporter) to: ${to}...`);
-    try {
-      const result = await sendViaSmtp({ to, subject, html, replyTo });
-      console.log(`[MAILER] [SUCCESS] SMTP delivery succeeded for: ${to}`);
-      return result;
-    } catch (err) {
-      console.error(`[MAILER] [ERROR] SMTP delivery failed for ${to}. Error:`, err);
-    }
-  } else {
-    console.log("[MAILER] [INFO] Skipping SMTP delivery in production environment (Render blocks ports 465/587) to prevent connection timeouts.");
-  }
-
-  // 3. FormSubmit (last resort)
-  console.log(`[MAILER] [TRY] Attempting delivery via FormSubmit HTTP fallback to: ${to}...`);
-  try {
-    const result = await sendViaFormSubmit({ to, subject, html, replyTo });
-    console.log(`[MAILER] [SUCCESS] FormSubmit delivery succeeded for: ${to}`);
-    return result;
-  } catch (err) {
-    console.error(`[MAILER] [FATAL ERROR] FormSubmit delivery failed for ${to}. Error:`, err);
-    throw err;
+    console.log(`[MAILER] Brevo email sent to ${to}. Message ID: ${data.messageId || "unknown"}`);
+    return data;
+  } finally {
+    clearTimeout(timeout);
   }
 }
-
-// ─── Email templates ─────────────────────────────────────────────────────────
 
 function layout({ title, eyebrow, body, accent = "#d7b46a" }) {
   return `

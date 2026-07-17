@@ -100,6 +100,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'luxe-salon-api' });
 });
 
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/contact', contactRoutes);
 

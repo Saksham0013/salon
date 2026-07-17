@@ -1,10 +1,10 @@
 export const business = {
   name: 'Luxe Salon',
-  address: 'Kunserwa, Nautanwa Bazar, Maharajganj, Uttar Pradesh',
-  phoneDisplay: '+91 6390385831',
-  phoneE164: '916390385831',
+  address: 'Karbala Rd, Nautanwa, Uttar Pradesh 273164',
+  phoneDisplay: '+91 63930 19726',
+  phoneE164: '916393019726',
   email: 'agraharisaksham0109@gmail.com',
-  instagramUrl: 'https://www.instagram.com/sakshamagrahari1289/',
+  instagramUrl: 'https://www.instagram.com/facestoriesbyvaishnavi/',
   whatsappMessage: 'Hello Luxe Salon, I want to book an appointment.'
 };
 

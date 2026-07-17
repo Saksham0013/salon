@@ -2,6 +2,7 @@ import { Clock, MapPin, Phone } from 'lucide-react';
 import AppointmentForm from '../components/AppointmentForm.jsx';
 import PageTransition from '../components/PageTransition.jsx';
 import SectionHeader from '../components/SectionHeader.jsx';
+import { business } from '../data/business.js';
 import useDocumentTitle from '../hooks/useDocumentTitle.js';
 
 export default function Booking() {
@@ -18,8 +19,8 @@ export default function Booking() {
           />
           <div className="mt-8 grid gap-4 text-sm text-ink/72">
             <p className="flex items-center gap-3"><Clock size={18} /> Same-day requests are subject to artist availability.</p>
-            <p className="flex items-center gap-3"><Phone size={18} /> +91 6390385831.</p>
-            <p className="flex items-center gap-3"><MapPin size={18} /> Kunserwa, Nautanwa Bazar, Maharajganj, Uttar Pradesh</p>
+            <p className="flex items-center gap-3"><Phone size={18} /> {business.phoneDisplay}</p>
+            <p className="flex items-center gap-3"><MapPin size={18} /> {business.address}</p>
           </div>
         </div>
         <AppointmentForm />
