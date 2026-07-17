@@ -182,7 +182,7 @@ export async function sendMail({ to, subject, html, replyTo }) {
   }
 
   // 2. SMTP (works locally; Render blocks ports 465/587)
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
   if (!isProduction) {
     console.log(`[MAILER] [TRY] Attempting delivery via SMTP (local transporter) to: ${to}...`);
     try {
