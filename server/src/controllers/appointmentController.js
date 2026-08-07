@@ -6,6 +6,11 @@ import {
   sendMail,
 } from "../services/mailer.js";
 import { saveAppointment } from "../services/memoryStore.js";
+import {
+  sendWhatsApp,
+  formatCustomerMessage,
+  formatAdminMessage,
+} from "../services/whatsapp.js";
 
 function sendAppointmentEmails(appointment) {
   const salonEmail = process.env.SALON_EMAIL;
@@ -43,6 +48,53 @@ function sendAppointmentEmails(appointment) {
     });
 }
 
+// ─── WhatsApp Notifications ───────────────────────────────────────────────────
+
+function sendAppointmentWhatsApps(appointment) {
+  const whatsappConfigured =
+    process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!whatsappConfigured) {
+    console.warn(
+      "[WHATSAPP] WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN not set. WhatsApp notifications skipped."
+    );
+    return;
+  }
+
+  // Notify salon owner
+  const salonWhatsApp = process.env.SALON_WHATSAPP;
+  if (salonWhatsApp) {
+    console.log(`[WHATSAPP] Sending admin booking alert to salon: ${salonWhatsApp}`);
+    sendWhatsApp({
+      to: salonWhatsApp,
+      message: formatAdminMessage(appointment),
+    })
+      .then((info) => {
+        console.log(`[WHATSAPP] Admin alert sent successfully to ${salonWhatsApp}.`, info);
+      })
+      .catch((error) => {
+        console.error(`[WHATSAPP] Admin alert failed for ${salonWhatsApp}:`, error.message);
+      });
+  } else {
+    console.warn("[WHATSAPP] SALON_WHATSAPP not set. Admin WhatsApp notification skipped.");
+  }
+
+  // Notify customer
+  if (appointment.phone) {
+    console.log(`[WHATSAPP] Sending booking confirmation to customer: ${appointment.phone}`);
+    sendWhatsApp({
+      to: appointment.phone,
+      message: formatCustomerMessage(appointment),
+    })
+      .then((info) => {
+        console.log(`[WHATSAPP] Customer confirmation sent successfully to ${appointment.phone}.`, info);
+      })
+      .catch((error) => {
+        console.error(`[WHATSAPP] Customer confirmation failed for ${appointment.phone}:`, error.message);
+      });
+  }
+}
+
 export async function createAppointment(req, res, next) {
   console.log("[BOOKING FLOW] [LOG] Received appointment request payload:", req.body);
   try {
@@ -62,6 +114,7 @@ export async function createAppointment(req, res, next) {
     console.log("[BOOKING FLOW] [LOG] JSON response returned to client.");
 
     sendAppointmentEmails(appointment);
+    sendAppointmentWhatsApps(appointment);
   } catch (error) {
     console.error("[BOOKING FLOW] [FATAL ERROR] Appointment creation failed:", error);
     next(error);
