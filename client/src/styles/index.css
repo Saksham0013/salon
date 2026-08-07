@@ -61,10 +61,25 @@ body {
   width: 100%;
   border: 1px solid rgba(17, 16, 14, 0.14);
   background: rgba(255, 250, 244, 0.86);
-  padding: 0.9rem 1rem;
+  padding: 0.85rem 1rem;
   color: #11100e;
+  font-size: 1rem;
+  line-height: 1.5;
   outline: none;
+  border-radius: 0.375rem;
   transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+select.field {
+  cursor: pointer;
+  appearance: auto;
+}
+
+select.field option {
+  background-color: #fffaf4;
+  color: #21100f;
+  padding: 8px 12px;
+  font-size: 1rem;
 }
 
 .field:focus {
@@ -76,3 +91,4 @@ body {
 .field::placeholder {
   color: rgba(17, 16, 14, 0.46);
 }
+

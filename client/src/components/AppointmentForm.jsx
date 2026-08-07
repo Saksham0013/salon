@@ -142,7 +142,11 @@ export default function AppointmentForm() {
         <div className="flex flex-col">
           <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredTime">Preferred Time</label>
           <select id="preferredTime" className="field w-full" name="preferredTime" value={form.preferredTime} onChange={update} required>
-            <option value="">Select time slot</option>
+            <option value="" disabled>
+              {form.preferredDate === todayStr && availableTimeSlots.length === 0
+                ? 'No slots remaining today — select tomorrow'
+                : 'Select time slot'}
+            </option>
             {availableTimeSlots.map((slot) => (
               <option key={slot.value} value={slot.value}>
                 {slot.label}
@@ -150,6 +154,7 @@ export default function AppointmentForm() {
             ))}
           </select>
         </div>
+
       </div>
       <textarea className="field min-h-32 resize-y" name="notes" value={form.notes} onChange={update} placeholder="Tell us about your goals, timing, or special requests." />
       <Button type="submit" disabled={status.state === 'loading'} className="w-full disabled:cursor-not-allowed disabled:opacity-60">
