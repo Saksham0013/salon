@@ -5,6 +5,21 @@ import Button from './Button.jsx';
 import { services } from '../data/salon.js';
 import { apiPath } from '../utils/api.js';
 
+const getTodayStr = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentTimeStr = () => {
+  const d = new Date();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
 const initial = {
   name: '',
   email: '',
@@ -19,13 +34,38 @@ export default function AppointmentForm() {
   const [form, setForm] = useState(initial);
   const [status, setStatus] = useState({ state: 'idle', message: '' });
 
+  const todayStr = getTodayStr();
+  const currentTimeStr = getCurrentTimeStr();
+
+  // If selected date is today, min time is current time; otherwise no minimum time restriction
+  const minTime = form.preferredDate === todayStr ? currentTimeStr : undefined;
+
   const update = (event) => {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => {
+      const nextForm = { ...current, [name]: value };
+
+      // If user selects today and current preferredTime is in the past, reset preferredTime
+      if (nextForm.preferredDate === todayStr && nextForm.preferredTime && nextForm.preferredTime < currentTimeStr) {
+        nextForm.preferredTime = '';
+      }
+      return nextForm;
+    });
   };
 
   const submit = async (event) => {
     event.preventDefault();
+
+    // Extra validation check for past date or past time on today
+    if (form.preferredDate < todayStr) {
+      setStatus({ state: 'error', message: 'Please select today or a future date for your appointment.' });
+      return;
+    }
+    if (form.preferredDate === todayStr && form.preferredTime < currentTimeStr) {
+      setStatus({ state: 'error', message: 'Please select a future time slot for today.' });
+      return;
+    }
+
     setStatus({ state: 'loading', message: 'Sending your appointment request...' });
     try {
       await axios.post(apiPath('/api/appointments'), form);
@@ -60,11 +100,11 @@ export default function AppointmentForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col">
           <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredDate">Preferred Date</label>
-          <input id="preferredDate" className="field w-full" type="date" name="preferredDate" value={form.preferredDate} onChange={update} required />
+          <input id="preferredDate" className="field w-full" type="date" name="preferredDate" min={todayStr} value={form.preferredDate} onChange={update} required />
         </div>
         <div className="flex flex-col">
           <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredTime">Preferred Time</label>
-          <input id="preferredTime" className="field w-full" type="time" name="preferredTime" value={form.preferredTime} onChange={update} required />
+          <input id="preferredTime" className="field w-full" type="time" name="preferredTime" min={minTime} value={form.preferredTime} onChange={update} required />
         </div>
       </div>
       <textarea className="field min-h-32 resize-y" name="notes" value={form.notes} onChange={update} placeholder="Tell us about your goals, timing, or special requests." />
@@ -79,3 +119,4 @@ export default function AppointmentForm() {
     </form>
   );
 }
+
