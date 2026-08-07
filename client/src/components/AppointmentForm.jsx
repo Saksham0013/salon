@@ -5,6 +5,32 @@ import Button from './Button.jsx';
 import { services } from '../data/salon.js';
 import { apiPath } from '../utils/api.js';
 
+const TIME_SLOTS = [
+  { value: '09:00', label: '09:00 AM' },
+  { value: '09:30', label: '09:30 AM' },
+  { value: '10:00', label: '10:00 AM' },
+  { value: '10:30', label: '10:30 AM' },
+  { value: '11:00', label: '11:00 AM' },
+  { value: '11:30', label: '11:30 AM' },
+  { value: '12:00', label: '12:00 PM' },
+  { value: '12:30', label: '12:30 PM' },
+  { value: '13:00', label: '01:00 PM' },
+  { value: '13:30', label: '01:30 PM' },
+  { value: '14:00', label: '02:00 PM' },
+  { value: '14:30', label: '02:30 PM' },
+  { value: '15:00', label: '03:00 PM' },
+  { value: '15:30', label: '03:30 PM' },
+  { value: '16:00', label: '04:00 PM' },
+  { value: '16:30', label: '04:30 PM' },
+  { value: '17:00', label: '05:00 PM' },
+  { value: '17:30', label: '05:30 PM' },
+  { value: '18:00', label: '06:00 PM' },
+  { value: '18:30', label: '06:30 PM' },
+  { value: '19:00', label: '07:00 PM' },
+  { value: '19:30', label: '07:30 PM' },
+  { value: '20:00', label: '08:00 PM' }
+];
+
 const getTodayStr = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -37,16 +63,21 @@ export default function AppointmentForm() {
   const todayStr = getTodayStr();
   const currentTimeStr = getCurrentTimeStr();
 
-  // If selected date is today, min time is current time; otherwise no minimum time restriction
-  const minTime = form.preferredDate === todayStr ? currentTimeStr : undefined;
+  // Filter time slots: If today is selected, only show slots AFTER current time
+  const availableTimeSlots = TIME_SLOTS.filter((slot) => {
+    if (form.preferredDate === todayStr) {
+      return slot.value > currentTimeStr;
+    }
+    return true;
+  });
 
   const update = (event) => {
     const { name, value } = event.target;
     setForm((current) => {
       const nextForm = { ...current, [name]: value };
 
-      // If user selects today and current preferredTime is in the past, reset preferredTime
-      if (nextForm.preferredDate === todayStr && nextForm.preferredTime && nextForm.preferredTime < currentTimeStr) {
+      // If user switches date to today and their selected preferredTime is now in the past/current, reset it
+      if (nextForm.preferredDate === todayStr && nextForm.preferredTime && nextForm.preferredTime <= currentTimeStr) {
         nextForm.preferredTime = '';
       }
       return nextForm;
@@ -56,19 +87,25 @@ export default function AppointmentForm() {
   const submit = async (event) => {
     event.preventDefault();
 
-    // Extra validation check for past date or past time on today
     if (form.preferredDate < todayStr) {
-      setStatus({ state: 'error', message: 'Please select today or a future date for your appointment.' });
+      setStatus({ state: 'error', message: 'Please select today or a future date.' });
       return;
     }
-    if (form.preferredDate === todayStr && form.preferredTime < currentTimeStr) {
+    if (form.preferredDate === todayStr && form.preferredTime <= currentTimeStr) {
       setStatus({ state: 'error', message: 'Please select a future time slot for today.' });
       return;
     }
 
     setStatus({ state: 'loading', message: 'Sending your appointment request...' });
     try {
-      await axios.post(apiPath('/api/appointments'), form);
+      // Find human readable time label for email/whatsapp
+      const selectedSlot = TIME_SLOTS.find((s) => s.value === form.preferredTime);
+      const payload = {
+        ...form,
+        preferredTime: selectedSlot ? selectedSlot.label : form.preferredTime
+      };
+
+      await axios.post(apiPath('/api/appointments'), payload);
 
       setForm(initial);
       setStatus({
@@ -104,7 +141,14 @@ export default function AppointmentForm() {
         </div>
         <div className="flex flex-col">
           <label className="mb-1 text-xs font-medium text-ink/70 uppercase tracking-wider" htmlFor="preferredTime">Preferred Time</label>
-          <input id="preferredTime" className="field w-full" type="time" name="preferredTime" min={minTime} value={form.preferredTime} onChange={update} required />
+          <select id="preferredTime" className="field w-full" name="preferredTime" value={form.preferredTime} onChange={update} required>
+            <option value="">Select time slot</option>
+            {availableTimeSlots.map((slot) => (
+              <option key={slot.value} value={slot.value}>
+                {slot.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <textarea className="field min-h-32 resize-y" name="notes" value={form.notes} onChange={update} placeholder="Tell us about your goals, timing, or special requests." />
@@ -119,4 +163,5 @@ export default function AppointmentForm() {
     </form>
   );
 }
+
 
